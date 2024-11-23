@@ -27,7 +27,7 @@ def introduction(conn, client: bool = True) -> tuple[int, str]:
         if msg == "INTRO@send pchash":
             conn.send(("INTRO@"+str(pchash())).encode())
             msg = conn.recv(MSG_SIZE).decode()
-            if msg.split('@')[0] != "found":
+            if msg.split('@')[1] != "found":
                 print("User found")
                 return (1, "")
             elif msg.split('@')[1] == "notfound":
@@ -59,6 +59,7 @@ def introduction(conn, client: bool = True) -> tuple[int, str]:
                     hashfd.write(json.dumps(d,indent=4))
             # if the hash is in the dictionary we got in the above step return true; else return false
             mutex.release() # release the lock here
+            print("-"*50)
             if sp[1] in d:
                 conn.send(b"INTRO@found")
                 return (1, sp[1])
@@ -69,7 +70,6 @@ def introduction(conn, client: bool = True) -> tuple[int, str]:
             print(f"unexpected msg type: {sp[0]}. Expected INTRO msg")
             conn.send(b"FAIL@msg not recognized")
             return (-1, "")
-    print("-"*50)
 
 def new_profile(conn, pchash: str = "", client: bool = True) -> None:
     print("New Profile:")
@@ -85,6 +85,7 @@ def new_profile(conn, pchash: str = "", client: bool = True) -> None:
         if pchash == "":
             print("pchash must be a non empty string contrain a string")
             conn.send("FAIL@unset server function")
+            print("-"*50)
             return
         conn.send(b"NEW@Enter a password")
         msg = conn.recv(MSG_SIZE).decode()
@@ -99,7 +100,7 @@ def new_profile(conn, pchash: str = "", client: bool = True) -> None:
                 hashfd.write(json.dumps(d,indent=4))
             mutex.release()
         elif cmd == "FAIL":
-            print(f"Client returned \"{msg}\"")
+            print(f"Client returned \"{msg}\" :\tExpected \"NEW\" msg")
     print("-"*50)
 
 # steps:
@@ -119,18 +120,21 @@ def login_user(conn, pchash: str, client: bool = True) -> bool:
             print(msg)
         else:
             conn.send(b"FAIL@unexpected msg in login_user")
-        # msg 2
         msg = conn.recv(MSG_SIZE).decode()
         if msg == "LOGIN@successful":
+            print("-"*50)
             return True
         elif msg == "LOGIN@unsuccessful":
+            print("-"*50)
             return False
         else:
             print(msg)
+            print("-"*50)
             return False
     else:
         if pchash == "":
             conn.send(b"FAIL@server error")
+            print("-"*50)
             return False
         conn.send(b"LOGIN@enter your password")
         msg = conn.recv(MSG_SIZE).decode()
@@ -138,17 +142,19 @@ def login_user(conn, pchash: str, client: bool = True) -> bool:
             mutex.acquire()
             with open("pchash.json", "r") as hashfd:
                 d = json.load(hashfd)
+            mutex.release()
             if d[pchash] == msg.split('@')[1]:
                 conn.send(b"LOGIN@successful")
+                print("-"*50)
                 return True
             else:
                 conn.send(b"LOGIN@unsuccessful")
+                print("-"*50)
                 return False
-            mutex.release()
         else:
-            print(f"Client returned \"{msg}\"")
+            print(f"Client returned \"{msg}\" :\tExpected \"LOGIN\" msg")
+            print("-"*50)
             return False
-    print("-"*50)
 
 def main():
     print("no runner setup")
