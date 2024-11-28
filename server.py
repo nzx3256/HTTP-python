@@ -1,5 +1,6 @@
 import os
 import protocol
+import subprocess as sproc
 import socket
 import threading
 
@@ -22,13 +23,61 @@ def handle_client(conn, addr):
         # disconnect client and close the thread
         protocol.exit_close(conn, -1, host_type == 'client')
 
+    os.chdir("CWD")
     # If the thread gets to this line that means that the server has passed the login subroutine.
     # start handling commands from the client
     while True:
         msg = conn.recv(protocol.MSG_SIZE).decode()
         if msg.split('@')[0] == 'LOGOUT':
             break
-
+        elif msg.split('@')[0] == 'LS':
+            relpath = msg.split('@')[-1]
+            if protocol.validPath(relpath):
+                #continue processing command
+                cmdin = "dir "+relpath
+                try:
+                    conn.send(b"OK@"+sproc.check_output(cmdin, shell=True))
+                except:
+                    conn.send(b"SERR@unexpected command error")
+            else:
+                conn.send(b"UERR@invalid relative path")
+        elif msg.split('@')[0] == 'MKDIR':
+            dirname = msg.split('@')[-1]
+            if protocol.validPath(dirname):
+                cmdin = "mkdir "+dirname
+                if sproc.call(cmdin, shell=True, stdout=sproc.DEVNULL, stderr=sproc.DEVNULL) == 0:
+                    conn.send(("OK@"+dirname+" created").encode())
+                else:
+                    conn.send(b"SERR@unexpected command error")
+            else:
+                conn.send(b"UERR@invalid relative path")
+        elif msg.split('@')[0] == 'RMDIR':
+            dirname = msg.split('@')[-1]
+            if protocol.validPath(dirname):
+                cmdin = "rmdir "+dirname
+                if sproc.call(cmdin, shell=True, stdout=sproc.DEVNULL, stderr=sproc.DEVNULL) == 0:
+                    conn.send(("OK@"+dirname+" deleted").encode())
+                else:
+                    conn.send(b"SERR@unexpected command error")
+            else:
+                conn.send(b"UERR@invalid relative path")
+        elif msg.split('@')[0] == 'DEL':
+            filename = msg.split('@')[-1]
+            if protocol.validPath(filename):
+                cmdin = "del "+filename
+                if sproc.call(cmdin, shell=True, stdout=sproc.DEVNULL, stderr=sproc.DEVNULL) == 0:
+                    conn.send(("OK@"+filename+" deleted").encode())
+                else:
+                    conn.send(b"SERR@unexpected command error")
+            else:
+                conn.send(b"UERR@invalid relative path")
+        elif msg.split('@')[0] == 'DOWN':
+            path = msg.split('@')[-1]
+            if protocol.validPath(path) and os.path.exists(path):
+                protocol.file_transfer(conn, download=False, filename=path)
+        elif msg.split('@')[0] == 'UP':
+            file = os.path.basename(msg.split('@')[-1])
+            protocol.file_transfer(conn, download=True, filename=file)
     conn.close()
 
 def main():
@@ -39,6 +88,7 @@ def main():
     print(f"server listening on {IP}:{PORT}")
     while True:
         conn, addr = server.accept()
+        print(f"Connection established with {addr[0]}:{addr[1]}")
         callback = threading.Thread(target=handle_client, args=(conn,addr))
         callback.start()
 
