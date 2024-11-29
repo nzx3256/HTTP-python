@@ -8,6 +8,8 @@ MSG_SIZE = 1024
 pchash_file = "pchash.json"
 mutex = Lock()
 
+ft_m_delim = '#DFE%%#'
+
 def file_transfer(conn, download: bool, filename = None) -> None:
     if download:
         if filename == None or type(filename) != str:
@@ -15,11 +17,11 @@ def file_transfer(conn, download: bool, filename = None) -> None:
         data = b""
         msg = conn.recv(MSG_SIZE)
         if msg[:4] == b"FILE":
-            while msg[-5:] != b"<END>":
+            while msg[-1*len(ft_m_delim):] != b"<END>":
                 data += msg
                 msg = conn.recv(MSG_SIZE)
-            data += msg[:-5]
-            head_sp = data.decode().split('#')
+            data += msg[:-1*len(ft_m_delim)]
+            head_sp = data.decode().split(ft_m_delim)
             filename = "default.txt"
             payload = "Nothing to write"
             for s in head_sp[1:]:
@@ -38,9 +40,9 @@ def file_transfer(conn, download: bool, filename = None) -> None:
             return
         try:
             with open(filename, "r") as fd:
-                conn.send(b"FILE#")
-                conn.send(b"NAME@"+filename.encode()+b"#")
-                conn.send(b"SIZE@"+str(os.path.getsize(filename)).encode()+b"#")
+                conn.send(b"FILE"+ft_m_delim.encode())
+                conn.send(b"NAME@"+filename.encode()+ft_m_delim.encode())
+                conn.send(b"SIZE@"+str(os.path.getsize(filename)).encode()+ft_m_delim.encode())
                 conn.send(b"PAYLOAD@"+fd.read().encode())
                 conn.send(b"<END>")
             conn.recv(4)
