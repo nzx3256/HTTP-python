@@ -3,6 +3,7 @@ import os
 import json
 from threading import Lock
 from login import getpwhash, pchash, newpwhash
+import time
 
 MSG_SIZE = 1024
 pchash_file = "pchash.json"
@@ -12,45 +13,58 @@ ft_m_delim = '#DFE%%#'
 
 def file_transfer(conn, download: bool, filename = None) -> None:
     if download:
-        if filename == None or type(filename) != str:
+        if filename is None or type(filename) != str:
             return
         data = b""
+        start_time = time.time()  # Start timing download
         msg = conn.recv(MSG_SIZE)
         if msg[:4] == b"FILE":
             while msg[-5:] != b"<END>":
                 data += msg
                 msg = conn.recv(MSG_SIZE)
             data += msg[:-5]
-            head_sp = data.decode().split(ft_m_delim)
-            filename = "default.txt"
-            payload = "Nothing to write"
-            for s in head_sp[1:]:
-                if s.split('@')[0] == "NAME":
-                    filename = os.path.basename(s.split('@')[1])
-                elif s.split('@')[0] == "SIZE":
-                    pass
-                elif s.split('@')[0] == "PAYLOAD":
-                    payload = s.split('@')[1]
-            with open(filename, 'wb') as fd:
-                fd.write(payload.encode())
-            conn.send(b"DONE")
+        transfer_time = time.time() - start_time  # End timing
+        file_size = len(data)
+        data_rate = file_size / transfer_time / (1024 * 1024)  # MB/s
+        print(f"Download completed. Time: {transfer_time:.2f}s, Rate: {data_rate:.2f} MB/s")
+
+        # Process file content
+        head_sp = data.decode().split(ft_m_delim)
+        filename = "default.txt"
+        payload = "Nothing to write"
+        for s in head_sp[1:]:
+            if s.split('@')[0] == "NAME":
+                filename = os.path.basename(s.split('@')[1])
+            elif s.split('@')[0] == "SIZE":
+                pass
+            elif s.split('@')[0] == "PAYLOAD":
+                payload = s.split('@')[1]
+        with open(filename, 'wb') as fd:
+            fd.write(payload.encode())
+        conn.send(b"DONE")
     else:
-        #upload
-        if filename == None or type(filename) != str:
+        # Upload
+        if filename is None or type(filename) != str:
             return
         try:
-            with open(filename, "r") as fd:
-                conn.send(b"FILE"+ft_m_delim.encode())
-                conn.send(b"NAME@"+filename.encode()+ft_m_delim.encode())
-                conn.send(b"SIZE@"+str(os.path.getsize(filename)).encode()+ft_m_delim.encode())
-                conn.send(b"PAYLOAD@"+fd.read().encode())
-                conn.send(b"<END>")
+            with open(filename, "rb") as fd:
+                file_content = fd.read()
+            file_size = len(file_content)
+            conn.send(b"FILE" + ft_m_delim.encode())
+            conn.send(b"NAME@" + filename.encode() + ft_m_delim.encode())
+            conn.send(b"SIZE@" + str(file_size).encode() + ft_m_delim.encode())
+            start_time = time.time()  # Start timing upload
+            conn.send(b"PAYLOAD@" + file_content)
+            conn.send(b"<END>")
             conn.recv(4)
-        #except FileNotFoundError:
-            #conn.send(b"SERR@FileNotFoundError")
-        except:
-            #conn.send(b"SERR@unexpected error")
-            pass
+            transfer_time = time.time() - start_time  # End timing
+            data_rate = file_size / transfer_time / (1024 * 1024)  # MB/s
+            print(f"Upload completed. Time: {transfer_time:.2f}s, Rate: {data_rate:.2f} MB/s")
+        except FileNotFoundError:
+            print("File not found.")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+
 
 def validPath(path: str, err_out: bool = False) -> bool:
     # enforce \ as the directory delimeter
@@ -93,10 +107,12 @@ def introduction(conn, client: bool = True) -> tuple[int, str]:
         if msg == "INTRO@send pchash":
             conn.send(("INTRO@"+str(pchash())).encode())
             msg = conn.recv(MSG_SIZE).decode()
-            if msg.split('@')[1] == "found":
-                return (1, "")
-            elif msg.split('@')[1] == "notfound":
+            if "notfound" in msg.split('@')[1]:
+                print("No user in server")
                 return (0, "")
+            elif "found" in msg.split('@')[1]:
+                print("User found")
+                return (1, "")
             else:
                 print(f"\"{msg}\" was not an acceptable input")
         else:
