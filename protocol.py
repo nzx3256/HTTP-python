@@ -17,10 +17,10 @@ def file_transfer(conn, download: bool, filename = None) -> None:
         data = b""
         msg = conn.recv(MSG_SIZE)
         if msg[:4] == b"FILE":
-            while msg[-1*len(ft_m_delim):] != b"<END>":
+            while msg[-5:] != b"<END>":
                 data += msg
                 msg = conn.recv(MSG_SIZE)
-            data += msg[:-1*len(ft_m_delim)]
+            data += msg[:-5]
             head_sp = data.decode().split(ft_m_delim)
             filename = "default.txt"
             payload = "Nothing to write"
