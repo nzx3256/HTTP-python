@@ -2,12 +2,15 @@ import os
 import socket
 import sys
 import protocol
+import time
 
 host_type = os.path.splitext(os.path.basename(__file__))[0].lower()
 PORT = 8080
 
 def recv_print(sock) -> None:
+    start_time = time.time()  # Start timing response
     msg = sock.recv(protocol.MSG_SIZE).decode()
+    response_time = time.time() - start_time  # End timing response
     if msg.split('@')[0] == "OK":
         print(msg.split('@')[1])
     elif msg.split('@')[0] == "UERR":
@@ -15,7 +18,8 @@ def recv_print(sock) -> None:
     elif msg.split('@')[0] == "SERR":
         print(f"Server Error: {msg.split('@')[1]}")
     else:
-        print("Unexpected messsage")
+        print("Unexpected message")
+    print(f"System response time: {response_time:.2f}s")
 
 def usage(n: int = 0) -> None:
     if n == 0:
