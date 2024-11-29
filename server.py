@@ -4,7 +4,7 @@ import subprocess as sproc
 import socket
 import threading
 
-IP = "localhost"
+IP = socket.gethostbyname(socket.gethostname())
 PORT = 8080
 host_type: str = os.path.splitext(os.path.basename(__file__))[0].lower()
 

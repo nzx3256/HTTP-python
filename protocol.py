@@ -21,7 +21,7 @@ def file_transfer(conn, download: bool, filename = None) -> None:
             data += msg[:-5]
             head_sp = data.decode().split('#')
             filename = "default.txt"
-            payload = b"Nothing to write"
+            payload = "Nothing to write"
             for s in head_sp[1:]:
                 if s.split('@')[0] == "NAME":
                     filename = os.path.basename(s.split('@')[1])
@@ -30,7 +30,7 @@ def file_transfer(conn, download: bool, filename = None) -> None:
                 elif s.split('@')[0] == "PAYLOAD":
                     payload = s.split('@')[1]
             with open(filename, 'wb') as fd:
-                fd.write(payload)
+                fd.write(payload.encode())
             conn.send(b"DONE")
     else:
         #upload
@@ -41,7 +41,7 @@ def file_transfer(conn, download: bool, filename = None) -> None:
                 conn.send(b"FILE#")
                 conn.send(b"NAME@"+filename.encode()+b"#")
                 conn.send(b"SIZE@"+str(os.path.getsize(filename)).encode()+b"#")
-                conn.send(b"PAYLOAD"+fd.read().encode()+b"#")
+                conn.send(b"PAYLOAD@"+fd.read().encode())
                 conn.send(b"<END>")
             conn.recv(4)
         #except FileNotFoundError:

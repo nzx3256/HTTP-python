@@ -54,7 +54,7 @@ def main(argv: list[str]) -> int:
     validateIP(IP)
     # socket setup
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.connect(("localhost",PORT))
+        sock.connect((IP,PORT))
         ret, _ = protocol.introduction(sock)
         if ret == 1:
             login_ret = protocol.login_user(sock, "")
