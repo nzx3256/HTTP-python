@@ -1,9 +1,11 @@
+import os
 import tkinter as tk
 from tkinter import messagebox, filedialog
 import socket
 import protocol
 from tkinter import simpledialog
 import threading
+import time
 
 # Constants
 MSG_SIZE = 1024
@@ -117,7 +119,13 @@ class ClientGUI:
         self.output_text.insert("end", "New user registered successfully.\n")
 
     def ls_command(self):
-        self.send_command("LS@")
+        dirname = simpledialog.askstring("List Directory", "Enter the name of the directory you wish to view (none for root):")
+        if dirname == "":
+            self.send_command(f"LS@")
+        elif protocol.validPath(dirname, True):
+            self.send_command(f"LS@{dirname}")
+        else:
+            self.output_text.insert("end", "Error: Invalid Path.\n")
 
     def mkdir_command(self):
         # Ask for the name of the directory to create
@@ -127,13 +135,16 @@ class ClientGUI:
             return
 
         # Ask where to create the directory
-        parent_dir = simpledialog.askstring("Make Directory", "Enter the path where the directory should be created:")
-        if not parent_dir:
-            self.output_text.insert("end", "Operation canceled: No parent directory provided.\n")
-            return
+        #parent_dir = simpledialog.askstring("Make Directory", "Enter the path where the directory should be created:")
+        #if not parent_dir:
+        #    self.output_text.insert("end", "Operation canceled: No parent directory provided.\n")
+        #    return
 
-        command = f"MKDIR@{parent_dir}\\{dirname}"
-        self.send_command(command)
+        if protocol.validPath(dirname, True):
+            command = f"MKDIR@{dirname}"
+            self.send_command(command)
+        else:
+            self.output_text.insert("end", "Error: Invalid Path.\n")
 
     def rmdir_command(self):
         # Ask for the name of the directory to remove
@@ -142,8 +153,12 @@ class ClientGUI:
             self.output_text.insert("end", "Operation canceled: No directory name provided.\n")
             return
 
-        command = f"RMDIR@{dirname}"
-        self.send_command(command)
+        if protocol.validPath(dirname, True):
+            command = f"RMDIR@{dirname}"
+            self.send_command(command)
+        else:
+            self.output_text.insert("end", "Error: Invalid Path.\n")
+
 
     def del_command(self):
         # Ask for the name of the file to delete
@@ -152,8 +167,11 @@ class ClientGUI:
             self.output_text.insert("end", "Operation canceled: No file name provided.\n")
             return
 
-        command = f"DEL@{filename}"
-        self.send_command(command)
+        if protocol.validPath(filename, True):
+            command = f"DEL@{filename}"
+            self.send_command(command)
+        else:
+            self.output_text.insert("end", "Error: Invalid Path.\n")
 
     def download_command(self):
         # Ask for the name of the file to download
@@ -161,10 +179,16 @@ class ClientGUI:
         if not filename:
             self.output_text.insert("end", "Operation canceled: No file name provided.\n")
             return
-
-
-        command = f"DOWN@{filename}"
-        self.send_command(command)
+        if protocol.validPath(filename, True):
+            #command = b"DOWN@{filename}"
+            start_time = time.time()  # Start timing response
+            self.sock.send(b"DOWN@"+filename.encode())
+            protocol.file_transfer(self.sock, download=True, filename=filename)
+            response_time = time.time() - start_time  # End timing response
+            self.output_text.insert("end", f"Server Response: Download Complete")
+            self.output_text.insert("end", f"Server Response: {response_time}\n")
+        else:
+            self.output_text.insert("end", "Error: Invalid Path.\n")
 
     def upload_command(self):
         # Ask for the file to upload
@@ -173,14 +197,17 @@ class ClientGUI:
             self.output_text.insert("end", "Operation canceled: No file path provided.\n")
             return
 
-        # Ask where to upload the file
-        #destination = simpledialog.askstring("Upload File", "Enter the destination path on the server:")
-        #if not destination:
-        #    self.output_text.insert("end", "Operation canceled: No destination path provided.\n")
-        #    return
+        if os.path.exists(filepath):
+            # command = b"DOWN@{filename}"
+            start_time = time.time()  # Start timing response
+            self.sock.send(b"UP@" + filepath.encode())
+            protocol.file_transfer(self.sock, download=False, filename=filepath)
+            response_time = time.time() - start_time  # End timing response
+            self.output_text.insert("end", f"Server Response: Upload Complete\n")
+            self.output_text.insert("end", f"Response Time: {response_time}\n")
 
-        protocol.file_transfer(self.sock, download=False, filename=filepath)
-        self.output_text.insert("end", f"File {filepath} uploaded successfully.\n")
+        else:
+            self.output_text.insert("end", "Error: File path does not exist: " + filepath + ". \n")
 
     def logout(self):
         self.send_command("LOGOUT@client request")
@@ -191,9 +218,13 @@ class ClientGUI:
 
     def send_command(self, cmd):
         if self.sock:
+            start_time = time.time()  # Start timing response
             self.sock.send(cmd.encode())
             msg = self.sock.recv(MSG_SIZE).decode()
+            response_time = time.time() - start_time  # End timing response
             self.output_text.insert("end", f"Server Response: {msg}\n")
+            self.output_text.insert("end", f"Response Time: {response_time:.2f}s\n")
+
         else:
             messagebox.showerror("Error", "Not connected to any server")
 
