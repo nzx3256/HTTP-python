@@ -11,7 +11,7 @@ mutex = Lock()
 
 ft_m_delim = '#DFE%%#'
 
-def file_transfer(conn, download: bool, filename = None) -> None:
+def file_transfer(conn, download: bool, filename=None) -> None:
     if download:
         if filename is None or type(filename) != str:
             return
@@ -29,18 +29,17 @@ def file_transfer(conn, download: bool, filename = None) -> None:
         print(f"Download completed. Time: {transfer_time:.2f}s, Rate: {data_rate:.2f} MB/s")
 
         # Process file content
-        head_sp = data.decode().split(ft_m_delim)
-        filename = "default.txt"
-        payload = "Nothing to write"
+        head_sp = data.split(ft_m_delim.encode())
+        filename = "default.bin"
+        payload = b""
         for s in head_sp[1:]:
-            if s.split('@')[0] == "NAME":
-                filename = os.path.basename(s.split('@')[1])
-            elif s.split('@')[0] == "SIZE":
-                pass
-            elif s.split('@')[0] == "PAYLOAD":
-                payload = s.split('@')[1]
+            key, value = s.split(b'@', 1)
+            if key == b"NAME":
+                filename = os.path.basename(value.decode())
+            elif key == b"PAYLOAD":
+                payload = value
         with open(filename, 'wb') as fd:
-            fd.write(payload.encode())
+            fd.write(payload)
         conn.send(b"DONE")
     else:
         # Upload
@@ -54,11 +53,12 @@ def file_transfer(conn, download: bool, filename = None) -> None:
             conn.send(b"NAME@" + filename.encode() + ft_m_delim.encode())
             conn.send(b"SIZE@" + str(file_size).encode() + ft_m_delim.encode())
             start_time = time.time()  # Start timing upload
-            conn.send(b"PAYLOAD@" + file_content)
+            conn.sendall(b"PAYLOAD@" + file_content)
             conn.send(b"<END>")
             conn.recv(4)
             transfer_time = time.time() - start_time  # End timing
             data_rate = file_size / transfer_time / (1024 * 1024)  # MB/s
+            print(transfer_time)
             print(f"Upload completed. Time: {transfer_time:.2f}s, Rate: {data_rate:.2f} MB/s")
         except FileNotFoundError:
             print("File not found.")
