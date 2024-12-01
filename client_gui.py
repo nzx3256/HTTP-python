@@ -11,6 +11,7 @@ import time
 MSG_SIZE = 1024
 PORT = 8080
 
+
 class ClientGUI:
     def __init__(self, root):
         self.root = root
@@ -44,9 +45,6 @@ class ClientGUI:
 
         self.login_btn = tk.Button(self.top_frame, text="Login", command=self.login_user, state=tk.DISABLED)
         self.login_btn.grid(row=0, column=3, padx=5)
-
-        self.register_btn = tk.Button(self.top_frame, text="Register", command=self.register_user, state=tk.DISABLED)
-        self.register_btn.grid(row=0, column=4, padx=5)
 
         # Command Buttons
         self.ls_btn = tk.Button(self.middle_frame, text="List Directory", command=self.ls_command, state=tk.DISABLED)
@@ -88,7 +86,7 @@ class ClientGUI:
             self.sock.connect((server_ip, PORT))
             self.output_text.insert("end", f"Connected to server at {server_ip}:{PORT}\n")
             self.login_btn.config(state=tk.NORMAL)
-            self.register_btn.config(state=tk.NORMAL)
+            self.connect_btn.config(state=tk.DISABLED)
         except Exception as e:
             messagebox.showerror("Connection Error", str(e))
 
@@ -99,24 +97,21 @@ class ClientGUI:
 
         ret, _ = protocol.introduction(self.sock)
         if ret == 1:
+            self.output_text.insert("end", "User found on server. Please login at the terminal.\n")
             login_ret = protocol.login_user(self.sock, "")
             if login_ret:
                 self.output_text.insert("end", "Login Successful\n")
                 self.enable_commands()
+                self.login_btn.config(state=tk.DISABLED)
             else:
-                self.output_text.insert("end", "Login Failed\n")
+                self.output_text.insert("end", "Login Failed. Logging Out\n")
+                protocol.exit_close(self.sock, -1)
+                self.login_btn.config(state=tk.DISABLED)
         elif ret == 0:
-            self.output_text.insert("end", "User not found on server. Register a new profile.\n")
+            self.output_text.insert("end", "User not found on server. Registering a new profile.\n")
+            protocol.new_profile(self.sock, "")
         elif ret == -1:
             self.output_text.insert("end", "Server rejected connection.\n")
-
-    def register_user(self):
-        if not self.sock:
-            messagebox.showerror("Error", "Not connected to any server")
-            return
-
-        protocol.new_profile(self.sock, "")
-        self.output_text.insert("end", "New user registered successfully.\n")
 
     def ls_command(self):
         dirname = simpledialog.askstring("List Directory", "Enter the name of the directory you wish to view (none for root):")
@@ -133,12 +128,6 @@ class ClientGUI:
         if not dirname:
             self.output_text.insert("end", "Operation canceled: No directory name provided.\n")
             return
-
-        # Ask where to create the directory
-        #parent_dir = simpledialog.askstring("Make Directory", "Enter the path where the directory should be created:")
-        #if not parent_dir:
-        #    self.output_text.insert("end", "Operation canceled: No parent directory provided.\n")
-        #    return
 
         if protocol.validPath(dirname, True):
             command = f"MKDIR@{dirname}"
