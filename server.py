@@ -7,9 +7,11 @@ import threading
 IP = socket.gethostbyname(socket.gethostname())
 PORT = 8080
 host_type: str = os.path.splitext(os.path.basename(__file__))[0].lower()
+initial_dir = os.getcwd()
 
 # thread callback to set up client connection
 def handle_client(conn, addr):
+    os.chdir(initial_dir) # Resets Dir
     ret, hash = protocol.introduction(conn, host_type == 'client')
     if ret == 1:
         # login_user protocol
