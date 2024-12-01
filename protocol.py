@@ -12,59 +12,51 @@ mutex = Lock()
 ft_m_delim = '#DFE%%#'
 
 def file_transfer(conn, download: bool, filename=None) -> None:
+    CHUNK_SIZE = 1024 * 1024  # 1 MB
+
     if download:
         if filename is None or type(filename) != str:
             return
-        data = b""
-        start_time = time.time()  # Start timing download
-        msg = conn.recv(MSG_SIZE)
-        if msg[:4] == b"FILE":
-            while msg[-5:] != b"<END>":
-                data += msg
-                msg = conn.recv(MSG_SIZE)
-            data += msg[:-5]
-        transfer_time = time.time() - start_time  # End timing
-        file_size = len(data)
-        data_rate = file_size / transfer_time / (1024 * 1024)  # MB/s
-        print(f"Download completed. Time: {transfer_time:.2f}s, Rate: {data_rate:.2f} MB/s")
-
-        # Process file content
-        head_sp = data.split(ft_m_delim.encode())
-        filename = "default.bin"
-        payload = b""
-        for s in head_sp[1:]:
-            key, value = s.split(b'@', 1)
-            if key == b"NAME":
-                filename = os.path.basename(value.decode())
-            elif key == b"PAYLOAD":
-                payload = value
         with open(filename, 'wb') as fd:
-            fd.write(payload)
+            start_time = time.time()  # Start timing download
+            total_size = 0
+            while True:
+                chunk = conn.recv(CHUNK_SIZE)
+                if chunk.endswith(b"<END>"):
+                    fd.write(chunk[:-5])  # Remove <END> marker
+                    total_size += len(chunk) - 5
+                    break
+                fd.write(chunk)
+                total_size += len(chunk)
+            transfer_time = time.time() - start_time  # End timing
+            data_rate = total_size / transfer_time / (1024 * 1024)  # MB/s
+            print(f"Download completed. Time: {transfer_time:.2f}s, Rate: {data_rate:.2f} MB/s")
         conn.send(b"DONE")
     else:
         # Upload
         if filename is None or type(filename) != str:
             return
         try:
+            file_size = os.path.getsize(filename)
             with open(filename, "rb") as fd:
-                file_content = fd.read()
-            file_size = len(file_content)
-            conn.send(b"FILE" + ft_m_delim.encode())
-            conn.send(b"NAME@" + filename.encode() + ft_m_delim.encode())
-            conn.send(b"SIZE@" + str(file_size).encode() + ft_m_delim.encode())
-            start_time = time.time()  # Start timing upload
-            conn.sendall(b"PAYLOAD@" + file_content)
-            conn.send(b"<END>")
-            conn.recv(4)
+                conn.send(b"FILE" + ft_m_delim.encode())
+                conn.send(b"NAME@" + filename.encode() + ft_m_delim.encode())
+                conn.send(b"SIZE@" + str(file_size).encode() + ft_m_delim.encode())
+                start_time = time.time()  # Start timing upload
+                while True:
+                    chunk = fd.read(CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    conn.sendall(chunk)
+                conn.send(b"<END>")
+            conn.recv(4)  # Wait for confirmation
             transfer_time = time.time() - start_time  # End timing
             data_rate = file_size / transfer_time / (1024 * 1024)  # MB/s
-            print(transfer_time)
             print(f"Upload completed. Time: {transfer_time:.2f}s, Rate: {data_rate:.2f} MB/s")
         except FileNotFoundError:
             print("File not found.")
         except Exception as e:
             print(f"Unexpected error: {e}")
-
 
 def validPath(path: str, err_out: bool = False) -> bool:
     # enforce \ as the directory delimeter
